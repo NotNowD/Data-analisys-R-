@@ -1,0 +1,109 @@
+---
+title: "ANOVA"
+author: "not_now_d"
+date: "21 03 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(dev = "png",dpi = 300, echo = TRUE, cache = TRUE)
+
+library(dplyr)
+library(readxl)
+library(tidyverse)
+library(car)
+library(coin)
+library(dunn.test)
+library(FSA)
+library(GmAMisc)
+library(ggstatsplot)
+```
+
+Імпорт даних з таблиці (Import data from a table)
+
+```{r}
+data_table <- read_excel("A549 proliferation nic rubinic nanoparticles 1 con.xlsx")
+data_table
+```
+A-E - normalized data
+
+Data distribution
+```{r}
+data_table %>% select(
+  A: E) -> select_data
+select_data
+control_shapiro <- shapiro.test(select_data$A)
+control_shapiro
+nic_shapiro <- shapiro.test(select_data$B)
+nic_shapiro
+rubiwo_shapiro <- shapiro.test(select_data$C)
+rubiwo_shapiro
+rubiwi_shapiro <- shapiro.test(select_data$D)
+rubiwi_shapiro
+#nanoparticle_shapiro <- shapiro.test(select_data$E)
+#nanoparticle_shapiro
+control_shapiro <- control_shapiro$p.value
+nic_shapiro <- nic_shapiro$p.value
+rubiwo_shapiro <- rubiwo_shapiro$p.value
+rubiwi_shapiro <- rubiwi_shapiro$p.value
+#nanoparticle_shapiro <- nanoparticle_shapiro$p.value
+ifelse(control_shapiro > 0.05, "Дані мають нормальний розподіл", "Дані мають не нормальний розподіл")
+ifelse(nic_shapiro > 0.05, "Дані мають нормальний розподіл", "Дані мають не нормальний розподіл")
+ifelse(rubiwo_shapiro > 0.05, "Дані мають нормальний розподіл", "Дані мають не нормальний розподіл")
+ifelse(rubiwi_shapiro > 0.05, "Дані мають нормальний розподіл", "Дані мають не нормальний розподіл")
+#ifelse(nanoparticle_shapiro > 0.05, "Дані мають нормальний розподіл", "Дані мають не нормальний розподіл")
+```
+Type of dispersion
+```{r}
+data_table %>% select(A, B, C,D) -> select_data
+select_data %>% pivot_longer('A':'D' ,names_to = "name", values_to = "value", values_drop_na = TRUE) -> data_table_2
+data_table_2
+if(control_shapiro > 0.05 && nic_shapiro > 0.05 && rubiwo_shapiro > 0.05 && rubiwi_shapiro > 0.05) {
+  leveneTest(data_table_2$value, data_table_2$name) -> levene_data
+  levene_data
+
+  ifelse(levene_data$Pr[1] > 0.05, "Дисперсія гомогенна", "Дисперсія гетерогенна")
+
+  if (levene_data$Pr[1] > 0.05) {anova_data <- aov(data_table_2$value ~ data_table_2$name)
+    print ("classic ANOVA")} else {
+    anova_data <- oneway.test(data_table_2$value ~ data_table_2$name, var.equal = FALSE)
+    print ("Welch ANOVA")}
+  anova_data
+
+  data_table_2 %>% ggplot(aes(name, value)) + geom_boxplot() + geom_point(alpha = 0.2)
+
+  summary(anova_data)
+  #TukeyHSD(anova_data)
+
+  #plot(TukeyHSD(anova_data))
+  } else {
+  #kruskal_data <- kruskal.test(data_table_2$value ~ data_table_2$name)
+  kruskal_data <- kruskal.test(select_data)
+
+  print(kruskal_data)
+
+  dunnTest(data_table_2$value, data_table_2$name, method="holm") ->dunn_data
+  print(dunn_data)
+  ggbetweenstats(data = data_table_2, x = name, y = value, type = "np", xlab = "", ylab = "a.u.", notch = TRUE)
+  }
+```
+
+```{r}
+data_table %>% select(Control, Nicotine, RuBi_wo_light, RuBi_5s_light) %>% rename("Rubi-nicotine" = RuBi_wo_light, "Released nicotine" = RuBi_5s_light) %>% pivot_longer('Control':'Released nicotine' ,names_to = "name", values_to = "value") -> hist_data
+hist_data %>% group_by(name) %>% summarise(mean_cell = mean(value, na.rm = TRUE), sem_cell = sd(value, na.rm = TRUE)/sqrt(length(value))) -> mean_sem
+mean_sem
+#factor(hist_data$name, levels=c("Control", "Nicotine","RuBi_wo_light", "RuBi_5s_light")) -> hist_data$name
+
+ggbetweenstats(data = hist_data, x = name, y = value, type = "np", xlab = "", ylab = "percentage (%)", sort = "descending")
+ggsave("Proliferation.png", plot = last_plot(), dpi = 500)
+```
+
+```{r}
+#mean_sem %>% ggplot(aes(name, mean_cell)) + geom_col(width = 0.4, aes(fill  = name)) + theme_bw() + geom_errorbar(aes(ymax = mean_cell + sem_cell, ymin = mean_cell - sem_cell), width = 0.1)
+```
+
+data_table %>% select(Control, Nicotine, RuBi_wo_light, RuBi_5s_light) %>% pivot_longer('Control':'RuBi_5s_light' ,names_to = "name", values_to = "value") -> hist_data hist_data hist_data %>% group_by(name) %>% means = mean(hist_data\$value) %>% ggplot(aes(name, means, fill = name)) + geom_col(position = "stack")
+
+Інтерпретація даних (Data interpretation)
+
+Статистичний аналіз був проведений у програмному середовищі R (версія 4.0.4, r-project.org). За допомогою теста Левеня було встановлено гомогенність дисперсії трьох вікових груп. За допомогою тесту ANOVA було оцінено значущу різницю між групами, вважалося, що статистично значущими результатами є ті, у яких виконується умова p \< 0.05. Дисперсії трьох вікових груп є рівними, тому можна було застосовувати тест ANOVA. Було вияснено, що ці групи мали статистично значиму різницю з p = 1.59e-08 і df = 2 (Group_age), 127(GFR). Результат зображений на рис.1 Для подальшого дослідження, між якими віковими групами є різниця, було застосовано тест Тукі. Виявлено, що статистично значимої різниці за даних умов дослідження не виявлено між віковими категоріями (2 \~ 3) з p = 0.136420. Відповідно між (2 \~ 3) та (2 \~ 3) статистично значима різниця. Результати зображені на рис.2
